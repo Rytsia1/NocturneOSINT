@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -25,7 +26,14 @@ type item struct {
 	Title     string
 	Link      string
 	Summary   string
-	Published string // raw date text; "" when the feed gives none
+	Published string     // raw date text; "" when the feed gives none
+	Media     []rawMedia // image metadata stated by the feed, in document order
+}
+
+// rawMedia is an image reference exactly as the feed states it. The image
+// itself is never fetched.
+type rawMedia struct {
+	URL, Width, Height string // Width/Height "" when not stated
 }
 
 type feedDoc struct {
@@ -34,21 +42,61 @@ type feedDoc struct {
 	Entries []atomEntry `xml:"entry"`        // Atom
 }
 
+// Unqualified tags such as "title" also match namespaced elements like
+// <media:title>, so text fields are slices and the first non-empty wins.
 type rssItem struct {
-	Title       string   `xml:"title"`
-	Links       []string `xml:"link"` // a slice: an <atom:link/> may sit beside <link>
-	Description string   `xml:"description"`
-	PubDate     string   `xml:"pubDate"`
+	Titles       []string       `xml:"title"`
+	Links        []string       `xml:"link"` // an <atom:link/> may sit beside <link>
+	Descriptions []string       `xml:"description"`
+	PubDate      string         `xml:"pubDate"`
+	Enclosures   []mediaElement `xml:"enclosure"`
+	mediaElements
 }
 
 type atomEntry struct {
-	Title string `xml:"title"`
-	Links []struct {
+	Titles []string `xml:"title"`
+	Links  []struct {
 		Href string `xml:"href,attr"`
 		Rel  string `xml:"rel,attr"`
+		Type string `xml:"type,attr"`
 	} `xml:"link"`
-	Summary   string `xml:"summary"`
-	Published string `xml:"published"`
+	Summaries []string `xml:"summary"`
+	Published string   `xml:"published"`
+	mediaElements
+}
+
+// mediaElements are the Media RSS (http://search.yahoo.com/mrss/) image
+// elements, valid in RSS items and Atom entries.
+type mediaElements struct {
+	Thumbnails []mediaElement `xml:"http://search.yahoo.com/mrss/ thumbnail"`
+	Contents   []mediaElement `xml:"http://search.yahoo.com/mrss/ content"`
+}
+
+type mediaElement struct {
+	URL    string `xml:"url,attr"`
+	Type   string `xml:"type,attr"`
+	Medium string `xml:"medium,attr"`
+	Width  string `xml:"width,attr"`
+	Height string `xml:"height,attr"`
+}
+
+func isImageType(mimeType string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(mimeType)), "image/")
+}
+
+// images returns the Media RSS images: every <media:thumbnail>, and each
+// <media:content> whose type is image/* (or, without a type, medium="image").
+func (m mediaElements) images() []rawMedia {
+	var out []rawMedia
+	for _, t := range m.Thumbnails {
+		out = append(out, rawMedia{t.URL, t.Width, t.Height})
+	}
+	for _, c := range m.Contents {
+		if isImageType(c.Type) || (c.Type == "" && c.Medium == "image") {
+			out = append(out, rawMedia{c.URL, c.Width, c.Height})
+		}
+	}
+	return out
 }
 
 // parseFeed reads an RSS 2.0 (<rss>) or Atom (<feed> in the Atom namespace)
@@ -64,20 +112,31 @@ func parseFeed(body []byte) ([]item, error) {
 	switch {
 	case doc.XMLName.Local == "rss" && doc.XMLName.Space == "":
 		for _, it := range doc.Items {
-			items = append(items, item{Title: it.Title, Link: firstNonEmpty(it.Links), Summary: it.Description, Published: it.PubDate})
+			media := it.images()
+			for _, enc := range it.Enclosures {
+				if isImageType(enc.Type) { // audio/video/other enclosures are not media here
+					media = append(media, rawMedia{URL: enc.URL})
+				}
+			}
+			items = append(items, item{Title: firstNonEmpty(it.Titles), Link: firstNonEmpty(it.Links),
+				Summary: firstNonEmpty(it.Descriptions), Published: it.PubDate, Media: media})
 		}
 	case doc.XMLName.Local == "feed" && doc.XMLName.Space == atomNS:
 		for _, e := range doc.Entries {
 			var link string
+			media := e.images()
 			for _, l := range e.Links {
-				if l.Rel == "" || l.Rel == "alternate" {
+				if link == "" && (l.Rel == "" || l.Rel == "alternate") {
 					link = l.Href
-					break
+				}
+				if l.Rel == "enclosure" && isImageType(l.Type) {
+					media = append(media, rawMedia{URL: l.Href})
 				}
 			}
 			// Atom <updated> is a modification time, not a publication
 			// time, so it is never used as published_at.
-			items = append(items, item{Title: e.Title, Link: link, Summary: e.Summary, Published: e.Published})
+			items = append(items, item{Title: firstNonEmpty(e.Titles), Link: link,
+				Summary: firstNonEmpty(e.Summaries), Published: e.Published, Media: media})
 		}
 	default:
 		return nil, fmt.Errorf("%w: root element <%s>", ErrInvalidFeed, doc.XMLName.Local)
@@ -137,4 +196,30 @@ func plainText(s string) string {
 // otherwise kept exactly as the feed gives it.
 func normalize(it item, sourceID string) (domain.Article, error) {
 	return domain.NewArticle(sourceID, it.Title, strings.TrimSpace(it.Link), plainText(it.Summary), parseDate(it.Published))
+}
+
+// normalizeMedia validates a stated image as media of the Article. The URL is
+// kept exactly as given; dimensions are used only when stated as integers,
+// never inferred. Malformed metadata is an error, not silently repaired.
+func normalizeMedia(m rawMedia, articleID string) (domain.ArticleMedia, error) {
+	width, err := parseDimension("width", m.Width)
+	if err != nil {
+		return domain.ArticleMedia{}, err
+	}
+	height, err := parseDimension("height", m.Height)
+	if err != nil {
+		return domain.ArticleMedia{}, err
+	}
+	return domain.NewArticleMedia(articleID, m.URL, "image", width, height)
+}
+
+func parseDimension(field, s string) (*int, error) {
+	if s == "" {
+		return nil, nil
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return nil, &domain.ValidationError{Field: field, Message: "must be an integer"}
+	}
+	return &n, nil
 }

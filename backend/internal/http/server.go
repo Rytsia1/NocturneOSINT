@@ -44,8 +44,8 @@ func newRouter(logger *slog.Logger, db *pgxpool.Pool, fetcher *ingest.Fetcher) h
 	mux.HandleFunc("GET /api/sources/{id}", sources.get)
 	mux.HandleFunc("DELETE /api/sources/{id}", sources.delete)
 
-	ingester := &ingestHandler{logger: logger, service: ingest.NewService(
-		repository.NewSourceRepository(db), repository.NewArticleRepository(db), fetcher)}
+	ingester := &ingestHandler{logger: logger, service: ingest.NewService(repository.NewSourceRepository(db),
+		repository.NewArticleRepository(db), repository.NewArticleMediaRepository(db), fetcher, logger)}
 	mux.HandleFunc("POST /api/sources/{id}/ingest", ingester.ingest)
 
 	articles := &articleHandler{logger: logger, articles: repository.NewArticleRepository(db)}
@@ -53,6 +53,12 @@ func newRouter(logger *slog.Logger, db *pgxpool.Pool, fetcher *ingest.Fetcher) h
 	mux.HandleFunc("POST /api/articles", articles.create)
 	mux.HandleFunc("GET /api/articles/{id}", articles.get)
 	mux.HandleFunc("DELETE /api/articles/{id}", articles.delete)
+
+	media := &articleMediaHandler{logger: logger, media: repository.NewArticleMediaRepository(db)}
+	mux.HandleFunc("POST /api/articles/{id}/media", media.create)
+	mux.HandleFunc("GET /api/articles/{id}/media", media.list)
+	mux.HandleFunc("GET /api/articles/{id}/media/{media_id}", media.get)
+	mux.HandleFunc("DELETE /api/articles/{id}/media/{media_id}", media.delete)
 
 	locations := &locationHandler{logger: logger, locations: repository.NewLocationRepository(db)}
 	mux.HandleFunc("GET /api/locations", locations.list)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -44,6 +45,7 @@ type fixture struct {
 	db       *pgxpool.Pool
 	sources  *repository.SourceRepository
 	articles *repository.ArticleRepository
+	media    *repository.ArticleMediaRepository
 	service  *Service
 	server   *httptest.Server
 	feeds    sync.Map // path → body served with 200
@@ -79,8 +81,13 @@ func newFixture(t *testing.T) *fixture {
 
 	f.sources = repository.NewSourceRepository(db)
 	f.articles = repository.NewArticleRepository(db)
-	f.service = NewService(f.sources, f.articles, NewFetcher(5*time.Second, MaxFeedBytes, allowAll))
+	f.media = repository.NewArticleMediaRepository(db)
+	f.service = f.newService(NewFetcher(5*time.Second, MaxFeedBytes, allowAll))
 	return f
+}
+
+func (f *fixture) newService(fetcher *Fetcher) *Service {
+	return NewService(f.sources, f.articles, f.media, fetcher, slog.New(slog.DiscardHandler))
 }
 
 // source serves body at path and creates a Source with that URL; the Source
@@ -275,7 +282,7 @@ func TestIntegration_IngestFailures(t *testing.T) {
 	}
 
 	// The production fetcher refuses the loopback test server outright.
-	blocked := NewService(f.sources, f.articles, NewDefaultFetcher())
+	blocked := f.newService(NewDefaultFetcher())
 	if _, err := blocked.Ingest(ctx, empty.ID); !errors.Is(err, ErrBlockedURL) {
 		t.Errorf("loopback source with default fetcher err = %v, want ErrBlockedURL", err)
 	}

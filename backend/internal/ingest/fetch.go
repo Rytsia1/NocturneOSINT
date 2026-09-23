@@ -19,12 +19,13 @@ import (
 
 // Ingestion limits. Feeds are small documents; anything larger is refused.
 const (
-	FetchTimeout  = 15 * time.Second // whole request, including reading the body
-	MaxFeedBytes  = 2 << 20          // 2 MiB response body, and so XML document
-	MaxFeedItems  = 200              // items considered per ingestion; the rest are ignored
-	MaxRedirects  = 5
-	UserAgent     = "Nocturne/0.1 (RSS/Atom feed ingestion)"
-	maxErrReports = 10 // per-item errors returned in a result
+	FetchTimeout    = 15 * time.Second // whole request, including reading the body
+	MaxFeedBytes    = 2 << 20          // 2 MiB response body, and so XML document
+	MaxFeedItems    = 200              // items considered per ingestion; the rest are ignored
+	MaxMediaPerItem = 10               // distinct image URLs recorded per new Article
+	MaxRedirects    = 5
+	UserAgent       = "Nocturne/0.1 (RSS/Atom feed ingestion)"
+	maxErrReports   = 10 // per-item errors returned in a result
 )
 
 var (

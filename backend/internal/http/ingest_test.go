@@ -135,7 +135,7 @@ func TestIntegration_IngestRSS(t *testing.T) {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	if got := fmt.Sprint(keys); got != "[duplicates errors fetched inserted invalid source_id truncated]" {
+	if got := fmt.Sprint(keys); got != "[duplicates errors fetched inserted invalid invalid_media media source_id truncated]" {
 		t.Errorf("response keys = %s", got)
 	}
 	first := decode[ingestBody](t, rec)

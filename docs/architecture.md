@@ -935,7 +935,7 @@ Ingestion Service   first 200 items; invalid items skipped and reported;
 Article (source_id = the Source)
 ```
 
-Deduplication is by Article URL: existing URLs are looked up first, and `articles_url_key` remains the final authority, so a repeated run inserts nothing and existing Articles are never updated. Only metadata is stored (title, url, summary, published_at, retrieved_at, source_id), never raw XML, HTML or media. Ingestion does not create Events, Locations or Evidence, and does no NLP, AI/LLM processing, crawling, link following or JavaScript rendering. Non-UTF-8 feeds are currently rejected as invalid.
+Deduplication is by Article URL: existing URLs are looked up first, and `articles_url_key` remains the final authority, so a repeated run inserts nothing and existing Articles are never updated. Only metadata is stored (title, url, summary, published_at, retrieved_at, source_id), never raw XML, HTML or media. For each newly created Article, ingestion also records up to 10 stated images as Article Media (§43): `<media:thumbnail>`, `<media:content>` with an `image/*` type (or `medium="image"`), RSS `<enclosure>` and Atom `<link rel="enclosure">` with an `image/*` type; malformed entries are logged and skipped without affecting the Article, and existing Articles' media are never changed. Ingestion does not create Events, Locations or Evidence, and does no NLP, AI/LLM processing, crawling, link following or JavaScript rendering. Non-UTF-8 feeds are currently rejected as invalid.
 
 SSRF mitigation (basic, not a complete defence): only `http`/`https`; `localhost` names are refused; every address actually dialed, after DNS resolution and on each redirect, must be public (not loopback, private, link-local, CGNAT, multicast or unspecified, IPv4 or IPv6), which also covers DNS rebinding between check and connect; environment proxies are ignored so the check applies to the real peer. The feed URL always comes from a stored Source, never from the request.
 
@@ -1368,6 +1368,18 @@ Android should:
 - handle unavailable images
 
 Image processing/CDN infrastructure can be added later.
+
+Implemented as Article Media (`article_media`, Step 8):
+
+```text
+Article
+   ↓
+Article Media (url, media_type = image, width?, height?)
+   ↓
+external image URL (loaded by the client)
+```
+
+**Nocturne stores image metadata, not image binaries.** The URL is kept exactly as given and is never requested by the backend — not to validate it, read its type or measure it — so a dead image URL is still valid metadata and no new SSRF path exists. `width`/`height` are stored only when the source states them (1–20 000), never inferred. Media is deleted with its Article (`ON DELETE CASCADE`); `UNIQUE (article_id, url)` prevents attaching the same image twice (the same image may belong to several Articles), and its index serves Article → media lookups. Media is listed oldest first, so the first row is the feed-card thumbnail candidate; there is no separate thumbnail column on `articles`, and Article responses are unchanged. Media is created during controlled feed ingestion (§26) or through `/api/articles/{id}/media`. No attribution or licensing field exists yet; one would be a separate schema decision when a source requires it.
 
 ---
 

@@ -33,7 +33,11 @@ curl localhost:8080/ready    # 200 {"status":"ready"} — database reachable; 50
 | `GET /api/articles?source_id=…&limit=20&cursor=…` | 200 `{"items":[…],"next_cursor":…}` by `published_at` (else `retrieved_at`), newest first | 400 |
 | `GET /api/articles/{id}` | 200 article | 400 bad id, 404 |
 | `POST /api/articles` `{"source_id","title","url","summary","published_at"}` | 201 article + `Location` | 400 invalid, 409 duplicate URL, 422 unknown source |
-| `DELETE /api/articles/{id}` | 204 | 400 bad id, 404 |
+| `DELETE /api/articles/{id}` | 204 (also removes its media metadata) | 400 bad id, 404 |
+| `POST /api/articles/{id}/media` `{"url","media_type","width","height"}` | 201 media + `Location`; `media_type` = `image`; `width`/`height` optional, 1–20 000 | 400 invalid, 404 unknown article, 409 URL already attached |
+| `GET /api/articles/{id}/media` | 200 `{"items":[{"id","article_id","url","media_type","width","height",…}],"truncated":…}` oldest first (the first is the thumbnail candidate), max 100 | 400, 404 |
+| `GET /api/articles/{id}/media/{media_id}` | 200 media | 400 bad id, 404 (also for another Article's media) |
+| `DELETE /api/articles/{id}/media/{media_id}` | 204 (the Article stays) | 400 bad id, 404 |
 | `GET /api/locations?limit=20&cursor=…` | 200 `{"items":[…],"next_cursor":…}` newest first | 400 |
 | `GET /api/locations?min_lat=&min_lon=&max_lat=&max_lon=&limit=100` | 200 `{"items":[…],"truncated":…}` inside the box (edges inclusive) | 400 (incl. boxes crossing the antimeridian) |
 | `GET /api/locations/nearby?lat=&lon=&radius_m=&limit=100` | 200 `{"items":[…],"truncated":…}` nearest first, each with `distance_m`; radius ≤ 50 000 m | 400 |
@@ -63,9 +67,18 @@ Source. It is manual (no scheduler), idempotent, and never modifies existing
 Articles. Counters: `fetched` items considered (first 200), `inserted` new
 Articles, `duplicates` URLs already stored or repeated in the feed, `invalid`
 items skipped (reasons for up to 10 in `errors`); `truncated` means the feed
-had more than 200 items. Only public http(s) addresses are fetched (15 s
+had more than 200 items; `media` image metadata rows stored and
+`invalid_media` malformed image entries skipped. Only public http(s) addresses are fetched (15 s
 timeout, 2 MiB, 5 redirects), so a feed on `localhost` or a private network is
 refused with 422.
+
+**Article media.** Media rows are metadata about externally hosted images: the
+URL (kept exactly as given), `media_type` (`image`), and `width`/`height` only
+when the feed or client states them. Nocturne never downloads, stores, resizes
+or proxies images, and never requests a media URL; clients load it directly.
+Ingestion records, for each newly created Article, up to 10 images from
+`<media:thumbnail>`, `<media:content>` (image type), RSS `<enclosure>` and Atom
+`<link rel="enclosure">` with an `image/*` type.
 
 ### Run the backend locally instead of in Docker
 

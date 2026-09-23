@@ -16,13 +16,15 @@ type ingestHandler struct {
 
 // ingestResponse is counts only: no feed content, no Articles.
 type ingestResponse struct {
-	SourceID   string            `json:"source_id"`
-	Fetched    int               `json:"fetched"`
-	Inserted   int               `json:"inserted"`
-	Duplicates int               `json:"duplicates"`
-	Invalid    int               `json:"invalid"`
-	Truncated  bool              `json:"truncated"`
-	Errors     []itemErrorOutput `json:"errors"`
+	SourceID     string            `json:"source_id"`
+	Fetched      int               `json:"fetched"`
+	Inserted     int               `json:"inserted"`
+	Duplicates   int               `json:"duplicates"`
+	Invalid      int               `json:"invalid"`
+	Truncated    bool              `json:"truncated"`
+	Media        int               `json:"media"`
+	InvalidMedia int               `json:"invalid_media"`
+	Errors       []itemErrorOutput `json:"errors"`
 }
 
 type itemErrorOutput struct {
@@ -60,6 +62,7 @@ func (h *ingestHandler) ingest(w http.ResponseWriter, r *http.Request) {
 		resp := ingestResponse{
 			SourceID: res.SourceID, Fetched: res.Fetched, Inserted: res.Inserted,
 			Duplicates: res.Duplicates, Invalid: res.Invalid, Truncated: res.Truncated,
+			Media: res.Media, InvalidMedia: res.InvalidMedia,
 			Errors: make([]itemErrorOutput, 0, len(res.Errors)),
 		}
 		for _, e := range res.Errors {

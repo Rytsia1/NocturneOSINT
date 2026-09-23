@@ -52,7 +52,7 @@ The backend is currently ahead of the client:
 
 ```text
 Backend:
-Implemented through Step 7 (controlled RSS / Atom feed ingestion).
+Implemented through Step 8 (article media / feed thumbnail metadata).
 
 Android:
 Not yet implemented. The repository contains no android/ code yet;
@@ -202,9 +202,9 @@ Step 6   Evidence / Provenance                  ✓ implemented
         ↓
 Step 7   Controlled RSS / Atom Ingestion        ✓ implemented
         ↓
-Step 8   Article Media / Feed Thumbnails        ← next
+Step 8   Article Media / Feed Thumbnails        ✓ implemented
         ↓
-Step 9   Search
+Step 9   Search                                 ← next
         ↓
 Step 10  Android Foundation
         ↓
@@ -219,7 +219,7 @@ Step 14  Advanced Enrichment
 
 Step 5 covers the Location domain with PostGIS spatial queries (bounding-box and nearby) plus Events and their EventLocation associations.
 
-Step 8 direction (not yet implemented):
+Step 8 (implemented as `article_media`):
 
 ```text
 RSS / Atom feed
@@ -818,7 +818,7 @@ Do not download full-resolution images when a smaller version is sufficient.
 
 Do not introduce fake images when source imagery is unavailable.
 
-Backend direction (Step 8, not yet implemented): store only optional external image metadata for Articles (URL, media type, dimensions only when the source states them). The backend must not download, store, proxy, resize or cache remote media; hosting, proxying and CDN infrastructure remain deferred.
+Backend (Step 8, implemented as `article_media`): store only optional external image metadata for Articles (URL, media type, dimensions only when the source states them). The backend must not download, store, proxy, resize or cache remote media; hosting, proxying and CDN infrastructure remain deferred.
 
 ---
 
@@ -932,6 +932,7 @@ Characteristics:
 - no scheduler
 - no AI extraction
 - no automatic Event, Location or Evidence creation
+- image metadata stated in the feed (Media RSS, image enclosures) is stored as Article Media for new Articles; image URLs are never fetched
 
 Current versus future execution:
 
