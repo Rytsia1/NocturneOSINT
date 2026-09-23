@@ -21,6 +21,18 @@ curl localhost:8080/health   # 200 {"status":"ok"}    — process is up
 curl localhost:8080/ready    # 200 {"status":"ready"} — database reachable; 503 if not
 ```
 
+### API
+
+| Endpoint | Success | Errors |
+|---|---|---|
+| `GET /api/sources?limit=20&cursor=…` | 200 `{"items":[…],"next_cursor":…}` newest first; `limit` 1–100 | 400 |
+| `GET /api/sources/{id}` | 200 source | 400 bad id, 404 |
+| `POST /api/sources` `{"name","url","description"}` | 201 source + `Location` | 400 invalid, 409 duplicate URL |
+| `DELETE /api/sources/{id}` | 204 | 400 bad id, 404 |
+
+Errors use `{"error":{"code":"…","message":"…"}}`. Source URLs must be absolute
+http(s) and are stored exactly as sent.
+
 ### Run the backend locally instead of in Docker
 
 ```bash

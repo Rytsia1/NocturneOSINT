@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"nocturne-backend/internal/repository"
 )
 
 // NewRouter builds the backend's HTTP handler, wrapped with request logging.
@@ -18,6 +20,12 @@ func NewRouter(logger *slog.Logger, db *pgxpool.Pool) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.HandleFunc("GET /ready", handleReady(logger, db))
+
+	sources := &sourceHandler{logger: logger, sources: repository.NewSourceRepository(db)}
+	mux.HandleFunc("GET /api/sources", sources.list)
+	mux.HandleFunc("POST /api/sources", sources.create)
+	mux.HandleFunc("GET /api/sources/{id}", sources.get)
+	mux.HandleFunc("DELETE /api/sources/{id}", sources.delete)
 
 	return withLogging(logger, mux)
 }
@@ -46,6 +54,11 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(body)
+}
+
+// writeError writes the API's standard error body: {"error":{"code","message"}}.
+func writeError(w http.ResponseWriter, status int, code, message string) {
+	writeJSON(w, status, map[string]any{"error": map[string]string{"code": code, "message": message}})
 }
 
 // statusRecorder captures the status code written by the wrapped handler so

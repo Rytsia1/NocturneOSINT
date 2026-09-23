@@ -552,6 +552,8 @@ GetInvestigationMap
 
 Application services should coordinate domain behavior without becoming massive "god services".
 
+An application service is added only when an operation coordinates more than a single validate-and-persist step. Resources whose operations are plain validation (in the domain constructor) plus persistence — currently Sources — are served by HTTP handlers calling the repository directly.
+
 ---
 
 # 14. Domain Layer
