@@ -23,10 +23,10 @@ func NewEventRepository(db *pgxpool.Pool) *EventRepository {
 
 const eventColumns = "id::text, title, description, occurred_at, COALESCE(occurred_at_precision, ''), created_at, updated_at"
 
-func scanEvent(row pgx.Row) (domain.Event, error) {
+func scanEvent(row pgx.Row, extra ...any) (domain.Event, error) {
 	var e domain.Event
-	err := row.Scan(&e.ID, &e.Title, &e.Description, &e.OccurredAt, &e.OccurredAtPrecision, &e.CreatedAt, &e.UpdatedAt)
-	return e, err
+	dest := append([]any{&e.ID, &e.Title, &e.Description, &e.OccurredAt, &e.OccurredAtPrecision, &e.CreatedAt, &e.UpdatedAt}, extra...)
+	return e, row.Scan(dest...)
 }
 
 // Create inserts e and returns it with its generated ID and timestamps.

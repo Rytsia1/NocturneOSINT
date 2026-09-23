@@ -59,6 +59,13 @@ func NewRouter(logger *slog.Logger, db *pgxpool.Pool) http.Handler {
 	mux.HandleFunc("POST /api/events/{id}/locations", events.addLocation)
 	mux.HandleFunc("DELETE /api/events/{id}/locations/{location_id}", events.removeLocation)
 
+	evidence := &evidenceHandler{logger: logger, evidence: repository.NewEvidenceRepository(db)}
+	mux.HandleFunc("POST /api/evidence", evidence.create)
+	mux.HandleFunc("GET /api/evidence/{id}", evidence.get)
+	mux.HandleFunc("DELETE /api/evidence/{id}", evidence.delete)
+	mux.HandleFunc("GET /api/articles/{id}/events", evidence.articleEvents)
+	mux.HandleFunc("GET /api/events/{id}/articles", evidence.eventArticles)
+
 	return withLogging(logger, mux)
 }
 

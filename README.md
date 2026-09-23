@@ -46,6 +46,11 @@ curl localhost:8080/ready    # 200 {"status":"ready"} — database reachable; 50
 | `GET /api/events/{id}/locations` | 200 `{"items":[{"role","location":{…}}],"truncated":…}`, sites first | 400 bad id, 404 |
 | `POST /api/events/{id}/locations` `{"location_id","role"}` | 201 `{"role","location":{…}}`; role ∈ site, related | 400 invalid, 404 unknown event, 409 already attached, 422 unknown location |
 | `DELETE /api/events/{id}/locations/{location_id}` | 204 | 400 bad id, 404 not attached |
+| `POST /api/evidence` `{"article_id","event_id"}` | 201 evidence + `Location` | 400 invalid, 409 already linked, 422 unknown article/event |
+| `GET /api/evidence/{id}` | 200 evidence | 400 bad id, 404 |
+| `DELETE /api/evidence/{id}` | 204 (removes the link, not the Article or Event) | 400 bad id, 404 |
+| `GET /api/events/{id}/articles?limit=20&cursor=…` | 200 `{"items":[{"evidence_id","article_id","source_id","title","url","published_at","retrieved_at"}],"next_cursor":…}` | 400, 404 |
+| `GET /api/articles/{id}/events?limit=20&cursor=…` | 200 `{"items":[{"evidence_id","event_id","title","occurred_at","occurred_at_precision"}],"next_cursor":…}` | 400, 404 |
 
 Errors use `{"error":{"code":"…","message":"…"}}`. URLs must be absolute
 http(s) and are stored exactly as sent. `published_at` is optional (RFC 3339);

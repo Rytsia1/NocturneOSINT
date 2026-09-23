@@ -24,10 +24,10 @@ func NewArticleRepository(db *pgxpool.Pool) *ArticleRepository {
 
 const articleColumns = "id::text, source_id::text, title, url, summary, published_at, retrieved_at, created_at, updated_at"
 
-func scanArticle(row pgx.Row) (domain.Article, error) {
+func scanArticle(row pgx.Row, extra ...any) (domain.Article, error) {
 	var a domain.Article
-	err := row.Scan(&a.ID, &a.SourceID, &a.Title, &a.URL, &a.Summary, &a.PublishedAt, &a.RetrievedAt, &a.CreatedAt, &a.UpdatedAt)
-	return a, err
+	dest := append([]any{&a.ID, &a.SourceID, &a.Title, &a.URL, &a.Summary, &a.PublishedAt, &a.RetrievedAt, &a.CreatedAt, &a.UpdatedAt}, extra...)
+	return a, row.Scan(dest...)
 }
 
 // Create inserts a and returns it with its generated ID and timestamps.
