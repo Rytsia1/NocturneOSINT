@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nocturne}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nocturne}
+      POSTGRES_DB: ${POSTGRES_DB:-nocturne}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nocturne}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    environment:
+      APP_ENV: development
+      PORT: 8080
+      LOG_LEVEL: info
+      DATABASE_URL: postgres://${POSTGRES_USER:-nocturne}:${POSTGRES_PASSWORD:-nocturne}@postgres:5432/${POSTGRES_DB:-nocturne}?sslmode=disable
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

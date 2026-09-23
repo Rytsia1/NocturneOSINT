@@ -1,0 +1,15 @@
+# Environment
+.env
+
+# Go
+backend/*.exe
+backend/*.test
+backend/*.out
+/bin/
+
+# IDE
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
