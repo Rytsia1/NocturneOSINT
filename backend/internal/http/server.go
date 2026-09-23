@@ -43,6 +43,22 @@ func NewRouter(logger *slog.Logger, db *pgxpool.Pool) http.Handler {
 	mux.HandleFunc("GET /api/articles/{id}", articles.get)
 	mux.HandleFunc("DELETE /api/articles/{id}", articles.delete)
 
+	locations := &locationHandler{logger: logger, locations: repository.NewLocationRepository(db)}
+	mux.HandleFunc("GET /api/locations", locations.list)
+	mux.HandleFunc("POST /api/locations", locations.create)
+	mux.HandleFunc("GET /api/locations/nearby", locations.nearby)
+	mux.HandleFunc("GET /api/locations/{id}", locations.get)
+	mux.HandleFunc("DELETE /api/locations/{id}", locations.delete)
+
+	events := &eventHandler{logger: logger, events: repository.NewEventRepository(db)}
+	mux.HandleFunc("GET /api/events", events.list)
+	mux.HandleFunc("POST /api/events", events.create)
+	mux.HandleFunc("GET /api/events/{id}", events.get)
+	mux.HandleFunc("DELETE /api/events/{id}", events.delete)
+	mux.HandleFunc("GET /api/events/{id}/locations", events.listLocations)
+	mux.HandleFunc("POST /api/events/{id}/locations", events.addLocation)
+	mux.HandleFunc("DELETE /api/events/{id}/locations/{location_id}", events.removeLocation)
+
 	return withLogging(logger, mux)
 }
 
@@ -86,14 +102,8 @@ type listResponse[T any] struct {
 // parsePage reads the limit and cursor query parameters shared by list
 // endpoints; on invalid input it writes a 400 response and returns ok=false.
 func parsePage(w http.ResponseWriter, r *http.Request) (limit int, cursor *repository.Cursor, ok bool) {
-	limit = defaultPageSize
-	if raw := r.URL.Query().Get("limit"); raw != "" {
-		n, err := strconv.Atoi(raw)
-		if err != nil || n < 1 || n > maxPageSize {
-			writeError(w, http.StatusBadRequest, "invalid_limit", "limit must be an integer between 1 and 100")
-			return 0, nil, false
-		}
-		limit = n
+	if limit, ok = parseLimit(w, r, defaultPageSize); !ok {
+		return 0, nil, false
 	}
 	if raw := r.URL.Query().Get("cursor"); raw != "" {
 		c, valid := decodeCursor(raw)
@@ -104,6 +114,21 @@ func parsePage(w http.ResponseWriter, r *http.Request) (limit int, cursor *repos
 		cursor = c
 	}
 	return limit, cursor, true
+}
+
+// parseLimit reads the limit query parameter (1–maxPageSize, default def); on
+// invalid input it writes a 400 response and returns ok=false.
+func parseLimit(w http.ResponseWriter, r *http.Request, def int) (int, bool) {
+	raw := r.URL.Query().Get("limit")
+	if raw == "" {
+		return def, true
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 1 || n > maxPageSize {
+		writeError(w, http.StatusBadRequest, "invalid_limit", "limit must be an integer between 1 and 100")
+		return 0, false
+	}
+	return n, true
 }
 
 // trimPage drops the extra row fetched to detect a next page and returns the

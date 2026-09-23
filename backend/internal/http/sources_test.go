@@ -9,11 +9,20 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var testSeq atomic.Int64
+
+// uniq returns a suffix unique within this test process; the clock alone can
+// repeat between fast consecutive calls on some platforms.
+func uniq() string {
+	return fmt.Sprintf("%d-%d", time.Now().UnixNano(), testSeq.Add(1))
+}
 
 func do(router http.Handler, method, path, body string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
@@ -121,7 +130,7 @@ func integrationRouter(t *testing.T) http.Handler {
 
 func createSource(t *testing.T, router http.Handler, name string) sourceBody {
 	t.Helper()
-	url := fmt.Sprintf("https://example.test/http/%s/%d", t.Name(), time.Now().UnixNano())
+	url := fmt.Sprintf("https://example.test/http/%s/%s", t.Name(), uniq())
 	rec := do(router, "POST", "/api/sources", fmt.Sprintf(`{"name":%q,"url":%q,"description":"test"}`, name, url))
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("POST status = %d, want 201 (body %s)", rec.Code, rec.Body.String())
@@ -133,7 +142,7 @@ func createSource(t *testing.T, router http.Handler, name string) sourceBody {
 
 func TestIntegration_SourceLifecycle(t *testing.T) {
 	router := integrationRouter(t)
-	url := fmt.Sprintf("https://www.reuters.com/?run=%d", time.Now().UnixNano())
+	url := fmt.Sprintf("https://www.reuters.com/?run=%s", uniq())
 
 	// Create
 	rec := do(router, "POST", "/api/sources", fmt.Sprintf(`{"name":"  Reuters ","url":%q,"description":"Global news organization."}`, url))

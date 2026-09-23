@@ -24,7 +24,7 @@ func timePtr(t time.Time) *time.Time { return &t }
 // deletes it when the test ends (before its Source, since cleanups run LIFO).
 func createTestArticle(t *testing.T, repo *ArticleRepository, sourceID string, publishedAt *time.Time) domain.Article {
 	t.Helper()
-	url := fmt.Sprintf("https://example.test/articles/%s/%d", t.Name(), time.Now().UnixNano())
+	url := fmt.Sprintf("https://example.test/articles/%s/%s", t.Name(), uniq())
 	a, err := domain.NewArticle(sourceID, "Test article", url, "test summary", publishedAt)
 	if err != nil {
 		t.Fatalf("NewArticle: %v", err)
@@ -80,7 +80,7 @@ func TestIntegration_ArticleWithoutPublicationTime(t *testing.T) {
 func TestIntegration_ArticleUnknownSourceRejected(t *testing.T) {
 	sources, articles := newTestRepos(t)
 	ctx := context.Background()
-	url := fmt.Sprintf("https://example.test/orphan/%d", time.Now().UnixNano())
+	url := fmt.Sprintf("https://example.test/orphan/%s", uniq())
 
 	a, _ := domain.NewArticle("00000000-0000-4000-8000-000000000000", "Orphan", url, "", nil)
 	if _, err := articles.Create(ctx, a); !errors.Is(err, domain.ErrSourceNotFound) {

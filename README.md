@@ -33,6 +33,19 @@ curl localhost:8080/ready    # 200 {"status":"ready"} — database reachable; 50
 | `GET /api/articles/{id}` | 200 article | 400 bad id, 404 |
 | `POST /api/articles` `{"source_id","title","url","summary","published_at"}` | 201 article + `Location` | 400 invalid, 409 duplicate URL, 422 unknown source |
 | `DELETE /api/articles/{id}` | 204 | 400 bad id, 404 |
+| `GET /api/locations?limit=20&cursor=…` | 200 `{"items":[…],"next_cursor":…}` newest first | 400 |
+| `GET /api/locations?min_lat=&min_lon=&max_lat=&max_lon=&limit=100` | 200 `{"items":[…],"truncated":…}` inside the box (edges inclusive) | 400 (incl. boxes crossing the antimeridian) |
+| `GET /api/locations/nearby?lat=&lon=&radius_m=&limit=100` | 200 `{"items":[…],"truncated":…}` nearest first, each with `distance_m`; radius ≤ 50 000 m | 400 |
+| `GET /api/locations/{id}` | 200 location | 400 bad id, 404 |
+| `POST /api/locations` `{"name","latitude","longitude","precision"}` | 201 location + `Location`; `precision` ∈ country, region, city, specific, approximate | 400 invalid |
+| `DELETE /api/locations/{id}` | 204 | 400 bad id, 404, 409 still referenced by an event |
+| `GET /api/events?limit=20&cursor=…` | 200 `{"items":[…],"next_cursor":…}` by `occurred_at` (else `created_at`), newest first | 400 |
+| `GET /api/events/{id}` | 200 event + `locations: [{location_id, role}]` | 400 bad id, 404 |
+| `POST /api/events` `{"title","description","occurred_at","occurred_at_precision"}` | 201 event + `Location`; precision ∈ exact, day, month, year | 400 invalid |
+| `DELETE /api/events/{id}` | 204 (removes its location links, not the locations) | 400 bad id, 404 |
+| `GET /api/events/{id}/locations` | 200 `{"items":[{"role","location":{…}}],"truncated":…}`, sites first | 400 bad id, 404 |
+| `POST /api/events/{id}/locations` `{"location_id","role"}` | 201 `{"role","location":{…}}`; role ∈ site, related | 400 invalid, 404 unknown event, 409 already attached, 422 unknown location |
+| `DELETE /api/events/{id}/locations/{location_id}` | 204 | 400 bad id, 404 not attached |
 
 Errors use `{"error":{"code":"…","message":"…"}}`. URLs must be absolute
 http(s) and are stored exactly as sent. `published_at` is optional (RFC 3339);

@@ -5,12 +5,21 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"nocturne-backend/internal/database"
 	"nocturne-backend/internal/domain"
 )
+
+var testSeq atomic.Int64
+
+// uniq returns a suffix unique within this test process; the clock alone can
+// repeat between fast consecutive calls on some platforms.
+func uniq() string {
+	return fmt.Sprintf("%d-%d", time.Now().UnixNano(), testSeq.Add(1))
+}
 
 // These are integration tests against the real PostgreSQL instance
 // (docker compose up -d); they are skipped when DATABASE_URL is unset.
@@ -32,7 +41,7 @@ func newTestRepo(t *testing.T) *SourceRepository {
 // deletes it when the test ends.
 func createTestSource(t *testing.T, repo *SourceRepository, name string) domain.Source {
 	t.Helper()
-	s, err := domain.NewSource(name, fmt.Sprintf("https://example.test/%s/%d", t.Name(), time.Now().UnixNano()), "test source")
+	s, err := domain.NewSource(name, fmt.Sprintf("https://example.test/%s/%s", t.Name(), uniq()), "test source")
 	if err != nil {
 		t.Fatalf("NewSource: %v", err)
 	}
@@ -68,7 +77,7 @@ func TestIntegration_SourceCreateAndGet(t *testing.T) {
 
 func TestIntegration_SourceURLStoredVerbatim(t *testing.T) {
 	repo := newTestRepo(t)
-	raw := fmt.Sprintf("HTTPS://Example.TEST/Path/../x?b=2&a=1#frag-%d", time.Now().UnixNano())
+	raw := fmt.Sprintf("HTTPS://Example.TEST/Path/../x?b=2&a=1#frag-%s", uniq())
 
 	s, err := domain.NewSource("Verbatim", raw, "")
 	if err != nil {

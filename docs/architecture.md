@@ -678,6 +678,10 @@ Location
 
 The geometry and coordinates must remain consistent.
 
+Implemented as a single `point geometry(Point, 4326)` column — the only stored coordinate; the API's `latitude`/`longitude` are read back from it (`ST_Y`/`ST_X`), so they cannot drift. The API uses latitude/longitude order; PostGIS stores `POINT(longitude latitude)`. Bounding-box queries use a GIST index on the geometry and do not support boxes crossing the antimeridian; nearby queries measure metres on the spheroid (GIST index on `point::geography`) with a 50 km maximum radius. `country` is deferred until a feature needs it.
+
+**Events** (occurrences being described or investigated — not Articles) reference Locations through `event_locations (event_id, location_id, role)`, so one Event can have several places and coordinates live only in `locations`. `role` is `site` (where the event happened) or `related` (another connected place); one Location appears at most once per Event. A vague claim ("near Tokyo Station") is expressed by linking a Location whose own `precision` matches the claim (e.g. `approximate`) rather than by a second precision field. Deleting an Event cascades to its associations; a Location still referenced by an Event cannot be deleted (409). Event time is `occurred_at` (NULL when unknown) plus `occurred_at_precision` (`exact`, `day`, `month`, `year`; partial values are stored at the start of the UTC period), so no precision is invented. Articles are intentionally not linked to Events yet: that relationship belongs to the provenance/evidence layer, not to a direct `article_id`/`event_id` column.
+
 ---
 
 # 18. Geographic Precision

@@ -64,7 +64,7 @@ type articleListBody struct {
 // run LIFO, so it is removed before the Source created earlier in the test.
 func createArticle(t *testing.T, router http.Handler, sourceID, publishedAt string) articleBody {
 	t.Helper()
-	url := fmt.Sprintf("https://example.test/http-articles/%s/%d", t.Name(), time.Now().UnixNano())
+	url := fmt.Sprintf("https://example.test/http-articles/%s/%s", t.Name(), uniq())
 	body := fmt.Sprintf(`{"source_id":%q,"title":"Test article","url":%q,"summary":"s"`, sourceID, url)
 	if publishedAt != "" {
 		body += fmt.Sprintf(`,"published_at":%q`, publishedAt)
@@ -81,7 +81,7 @@ func createArticle(t *testing.T, router http.Handler, sourceID, publishedAt stri
 func TestIntegration_ArticleLifecycle(t *testing.T) {
 	router := integrationRouter(t)
 	source := createSource(t, router, "Reuters")
-	url := fmt.Sprintf("https://www.reuters.com/tech/tsmc-%d", time.Now().UnixNano())
+	url := fmt.Sprintf("https://www.reuters.com/tech/tsmc-%s", uniq())
 
 	// Create
 	rec := do(router, "POST", "/api/articles", fmt.Sprintf(
