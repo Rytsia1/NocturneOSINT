@@ -853,6 +853,17 @@ Do not introduce Elasticsearch/OpenSearch at MVP stage.
 
 If search requirements later exceed PostgreSQL capabilities, reassess based on actual measurements.
 
+Implemented (Step 9) as PostgreSQL full-text search over Articles only, exposed as `GET /api/search/articles`. There is no separate search engine or search table: at Nocturne's scale PostgreSQL keeps search transactionally consistent with the data, needs no extra service, and a measured need does not yet exist for Elasticsearch/OpenSearch.
+
+- **Searchable fields:** `title` and `summary` only, via the generated column `articles.search_vector` = `setweight(to_tsvector('simple', title), 'A') || setweight(to_tsvector('simple', summary), 'B')` with a GIN index (`articles_search_idx`). Source descriptions, Events, Locations, media URLs and external pages are not searched. `summary` is `NOT NULL` (empty when absent), so the vector is always defined.
+- **Language:** the `simple` configuration lower-cases whole words and applies no stemming or stop words, because sources are multilingual and no language is assumed. Consequently `earthquakes` does not match `earthquake`.
+- **Queries:** `websearch_to_tsquery` (plain words = AND, `"phrases"`, `OR`, `-word`); it accepts any input without syntax errors, and the query is always a bound parameter. Queries are 1–200 characters of valid UTF-8.
+- **Ranking:** `ts_rank` with PostgreSQL's default weights, so a title word counts 1.0 and a summary word 0.4. **Search relevance is textual relevance only. It does not represent source credibility, factual certainty, or event confidence.** No semantic understanding is claimed.
+- **Filters:** `source_id` (an unknown Source yields no results, as in `GET /api/articles`) and an inclusive `published_at` range; Articles without `published_at` never match a date range.
+- **Pagination:** keyset on `(score, feed_at, id)` descending; the opaque cursor carries the exact float32 score, feed time and id, so pages neither skip nor repeat. No OFFSET.
+- **Verified plan:** on a 50 000-row dataset (rolled back), selective queries use a Bitmap Index Scan on `articles_search_idx` (0.2–2 ms); a word present in every row correctly uses a sequential scan. Right after a bulk insert the planner may avoid the index until the GIN pending list is flushed (autovacuum does this).
+- **Limitations:** no stemming, fuzzy or prefix matching, no search across Events/Locations/Sources, and the ranking sorts every match before the limit, which is fine at current volumes.
+
 ---
 
 # 25. Caching

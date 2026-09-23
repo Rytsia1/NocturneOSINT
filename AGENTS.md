@@ -52,7 +52,7 @@ The backend is currently ahead of the client:
 
 ```text
 Backend:
-Implemented through Step 8 (article media / feed thumbnail metadata).
+Implemented through Step 9 (PostgreSQL article search).
 
 Android:
 Not yet implemented. The repository contains no android/ code yet;
@@ -204,9 +204,9 @@ Step 7   Controlled RSS / Atom Ingestion        ✓ implemented
         ↓
 Step 8   Article Media / Feed Thumbnails        ✓ implemented
         ↓
-Step 9   Search                                 ← next
+Step 9   Search                                 ✓ implemented
         ↓
-Step 10  Android Foundation
+Step 10  Android Foundation                     ← next
         ↓
 Step 11  Room / Offline-Aware Client
         ↓
@@ -1305,7 +1305,8 @@ Search (Step 9) follows the same rule:
 
 ```text
 Current:
-Resource listing and filtering exist where already implemented.
+PostgreSQL full-text search over Article title and summary
+(GET /api/search/articles), plus resource listing and filtering.
 
 Future:
 Cross-resource search.

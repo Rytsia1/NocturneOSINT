@@ -60,6 +60,9 @@ func newRouter(logger *slog.Logger, db *pgxpool.Pool, fetcher *ingest.Fetcher) h
 	mux.HandleFunc("GET /api/articles/{id}/media/{media_id}", media.get)
 	mux.HandleFunc("DELETE /api/articles/{id}/media/{media_id}", media.delete)
 
+	search := &searchHandler{logger: logger, articles: repository.NewArticleRepository(db)}
+	mux.HandleFunc("GET /api/search/articles", search.searchArticles)
+
 	locations := &locationHandler{logger: logger, locations: repository.NewLocationRepository(db)}
 	mux.HandleFunc("GET /api/locations", locations.list)
 	mux.HandleFunc("POST /api/locations", locations.create)

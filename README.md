@@ -38,6 +38,7 @@ curl localhost:8080/ready    # 200 {"status":"ready"} — database reachable; 50
 | `GET /api/articles/{id}/media` | 200 `{"items":[{"id","article_id","url","media_type","width","height",…}],"truncated":…}` oldest first (the first is the thumbnail candidate), max 100 | 400, 404 |
 | `GET /api/articles/{id}/media/{media_id}` | 200 media | 400 bad id, 404 (also for another Article's media) |
 | `DELETE /api/articles/{id}/media/{media_id}` | 204 (the Article stays) | 400 bad id, 404 |
+| `GET /api/search/articles?q=…&source_id=…&published_from=…&published_to=…&limit=20&cursor=…` | 200 `{"items":[{…article…,"score"}],"next_cursor":…}` most relevant first | 400 `invalid_query`, `invalid_source_id`, `invalid_date`, `invalid_date_range`, `invalid_limit`, `invalid_cursor` |
 | `GET /api/locations?limit=20&cursor=…` | 200 `{"items":[…],"next_cursor":…}` newest first | 400 |
 | `GET /api/locations?min_lat=&min_lon=&max_lat=&max_lon=&limit=100` | 200 `{"items":[…],"truncated":…}` inside the box (edges inclusive) | 400 (incl. boxes crossing the antimeridian) |
 | `GET /api/locations/nearby?lat=&lon=&radius_m=&limit=100` | 200 `{"items":[…],"truncated":…}` nearest first, each with `distance_m`; radius ≤ 50 000 m | 400 |
@@ -71,6 +72,16 @@ had more than 200 items; `media` image metadata rows stored and
 `invalid_media` malformed image entries skipped. Only public http(s) addresses are fetched (15 s
 timeout, 2 MiB, 5 redirects), so a feed on `localhost` or a private network is
 refused with 422.
+
+**Search.** `GET /api/search/articles` does PostgreSQL full-text search over
+Article titles and summaries. `q` (required, 1–200 characters) accepts plain
+words, `"quoted phrases"`, `OR` and `-excluded` words; words match whole and
+case-insensitively, without stemming (`earthquakes` does not match
+`earthquake`). Optional filters: `source_id`, and `published_from` /
+`published_to` (RFC 3339, inclusive; Articles without `published_at` never
+match a date filter). Results are paged with `limit` (1–100, default 20) and
+the returned `next_cursor`. `score` is textual relevance only (title words
+count more than summary words); it says nothing about credibility or accuracy.
 
 **Article media.** Media rows are metadata about externally hosted images: the
 URL (kept exactly as given), `media_type` (`image`), and `width`/`height` only

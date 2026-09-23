@@ -287,3 +287,20 @@ func TestIntegration_IngestFailures(t *testing.T) {
 		t.Errorf("loopback source with default fetcher err = %v, want ErrBlockedURL", err)
 	}
 }
+
+func TestIntegration_IngestedArticlesAreSearchable(t *testing.T) {
+	f := newFixture(t)
+	tok := "ingestsrch" + strings.ReplaceAll(run(), "-", "x")
+	src := f.source(t, "/searchable", rssFeed(xmlItem("Harbour fire "+tok, "https://example.test/"+run()+"/fire", "")))
+	if _, err := f.service.Ingest(context.Background(), src.ID); err != nil {
+		t.Fatalf("Ingest: %v", err)
+	}
+	s, err := domain.NewArticleSearch(tok, "", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := f.articles.SearchArticles(context.Background(), s, 10, nil)
+	if err != nil || len(got) != 1 || got[0].SourceID != src.ID {
+		t.Errorf("search for ingested article = %v, %v; want 1 match from the Source", got, err)
+	}
+}
