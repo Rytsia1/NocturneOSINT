@@ -46,6 +46,63 @@ The backend is designed to be:
 - geospatially capable
 - provenance-aware
 
+## Current Status
+
+The backend is currently ahead of the client:
+
+```text
+Backend:
+Implemented through Step 7 (controlled RSS / Atom feed ingestion).
+
+Android:
+Not yet implemented. The repository contains no android/ code yet;
+the Android stack above is the planned client architecture.
+```
+
+Implemented backend domains:
+
+```text
+Source
+Article
+Location
+Event
+EventLocation
+Evidence
+```
+
+Current data model:
+
+```text
+Source
+   │
+   ▼
+Article
+   │
+   │ Evidence
+   ▼
+Event
+   │
+   ▼
+EventLocation
+   │
+   ▼
+Location
+   │
+   ▼
+PostGIS
+```
+
+Core rule:
+
+```text
+Article does NOT directly reference Event.
+Event does NOT directly reference Article.
+
+Evidence is the explicit provenance relationship.
+```
+
+Do not add `articles.event_id` or `events.article_id`. Evidence records that an Article provides information about an Event; it does not establish that the Event is true or that the Article is reliable.
+
 ---
 
 # 2. Core Principle
@@ -128,42 +185,61 @@ unless explicitly required.
 
 Nocturne is intentionally developed incrementally.
 
-Recommended progression:
+This is the single authoritative development roadmap. These are development milestones, not necessarily the final product feature hierarchy. Each milestone should remain independently reviewable.
 
 ```text
-Step 1
-Backend Foundation
+Step 1   Backend Foundation                     ✓ implemented
         ↓
-Step 2
-Database + CRUD API
+Step 2   PostgreSQL + PostGIS                   ✓ implemented
         ↓
-Step 3
-Android Foundation
+Step 3   Source                                 ✓ implemented
         ↓
-Step 4
-Source + Article
+Step 4   Article + Source Provenance            ✓ implemented
         ↓
-Step 5
-Entities + Events
+Step 5   Location + Event                       ✓ implemented
         ↓
-Step 6
-Global Map
+Step 6   Evidence / Provenance                  ✓ implemented
         ↓
-Step 7
-Investigations
+Step 7   Controlled RSS / Atom Ingestion        ✓ implemented
         ↓
-Step 8
-Offline-Aware Storage
+Step 8   Article Media / Feed Thumbnails        ← next
         ↓
-Step 9
-Source Ingestion
+Step 9   Search
         ↓
-Step 10
-Search Optimization
+Step 10  Android Foundation
         ↓
-Step 11
-Advanced Enrichment
+Step 11  Room / Offline-Aware Client
+        ↓
+Step 12  Global Map Android Integration
+        ↓
+Step 13  Investigation / Dossier Client
+        ↓
+Step 14  Advanced Enrichment
 ```
+
+Step 5 covers the Location domain with PostGIS spatial queries (bounding-box and nearby) plus Events and their EventLocation associations.
+
+Step 8 direction (not yet implemented):
+
+```text
+RSS / Atom feed
+      ↓
+Article
+      +
+optional external image metadata (URL, type, stated dimensions)
+```
+
+not:
+
+```text
+Backend
+ ↓
+download image
+ ↓
+store image
+```
+
+Media hosting, image proxying, resizing and CDN infrastructure remain deferred.
 
 Do not skip multiple stages unless explicitly instructed.
 
@@ -180,7 +256,7 @@ Expected high-level structure:
 ```text
 nocturne/
 │
-├── android/
+├── android/          (planned — not yet present)
 │
 ├── backend/
 │
@@ -192,7 +268,7 @@ nocturne/
 └── AGENTS.md
 ```
 
-Backend:
+Backend (current):
 
 ```text
 backend/
@@ -200,11 +276,11 @@ backend/
 │   └── server/
 ├── internal/
 │   ├── config/
+│   ├── database/
 │   ├── domain/
-│   ├── application/
 │   ├── repository/
 │   ├── http/
-│   └── database/
+│   └── ingest/       (feed ingestion service: fetch → parse → normalize → store)
 ├── migrations/
 ├── Dockerfile
 ├── go.mod
@@ -221,7 +297,7 @@ Do not force an architecture mechanically if the repository already has a clean 
 
 ## Android
 
-Use:
+Planned client stack (no Android code exists yet; applies from Step 10). Use:
 
 - Kotlin
 - Jetpack Compose
@@ -570,6 +646,8 @@ Respect mobile bandwidth and memory constraints.
 
 # 22. Android Guidelines
 
+Sections 22–26 describe the planned Android client (Steps 10–13). No Android code exists yet; do not describe these as implemented.
+
 Use modern Android architecture.
 
 Preferred:
@@ -637,9 +715,23 @@ Do not display blank screens when data fails to load.
 
 # 25. Offline-Aware Architecture
 
-Nocturne is offline-aware.
+Nocturne is designed to be offline-aware. Offline support is a future Android capability (Step 11); Nocturne does not support offline mode yet.
 
 It is NOT required to be completely offline.
+
+```text
+Backend currently supports:
+- bounded API responses
+- pagination
+- compact resource representations
+
+Future Android client:
+- Room cache
+- cached investigations
+- cached articles
+- offline-aware UI
+- synchronization
+```
 
 The preferred flow is:
 
@@ -726,6 +818,8 @@ Do not download full-resolution images when a smaller version is sufficient.
 
 Do not introduce fake images when source imagery is unavailable.
 
+Backend direction (Step 8, not yet implemented): store only optional external image metadata for Articles (URL, media type, dimensions only when the source states them). The backend must not download, store, proxy, resize or cache remote media; hosting, proxying and CDN infrastructure remain deferred.
+
 ---
 
 # 29. Map Development Rules
@@ -742,7 +836,28 @@ Prefer:
 - viewport-based queries
 - incremental loading
 
-The backend should support geographic bounding queries when map functionality is implemented.
+The backend already provides the spatial queries a map needs; the Android Global Map (Step 12) does not exist yet:
+
+```text
+CURRENT BACKEND
+
+Location
+↓
+PostGIS
+↓
+Bounding-box / nearby queries
+
+
+FUTURE CLIENT
+
+Kotlin
+↓
+Ktor
+↓
+MapLibre
+↓
+Global Map
+```
 
 ---
 
@@ -788,6 +903,72 @@ When implementing ingestion or enrichment:
 
 Do not implement credential theft, unauthorized access, or private-data acquisition.
 
+## Current Ingestion (Step 7)
+
+Feed ingestion is implemented in `backend/internal/ingest` and is intentionally conservative:
+
+```text
+Source.url
+   ↓
+Fetcher
+   ↓
+RSS / Atom Parser
+   ↓
+Normalizer
+   ↓
+Deduplication (by Article URL)
+   ↓
+Article
+```
+
+Characteristics:
+
+- manual trigger: `POST /api/sources/{id}/ingest`
+- the stored Source's URL is the feed URL
+- RSS 2.0 and Atom supported
+- URL-based Article deduplication; repeated ingestion is idempotent
+- bounded feed size, bounded item count, request timeout, redirect limit
+- SSRF / private-address protection
+- no scheduler
+- no AI extraction
+- no automatic Event, Location or Evidence creation
+
+Current versus future execution:
+
+```text
+CURRENT
+
+POST /api/sources/{id}/ingest
+        ↓
+synchronous ingestion
+        ↓
+Article
+
+
+FUTURE
+
+Scheduler / Job Queue
+        ↓
+Worker
+        ↓
+same ingestion pipeline
+```
+
+No scheduler, queue or worker exists yet; background workers remain future infrastructure.
+
+Agents must NOT:
+
+- add arbitrary URL ingestion
+- bypass stored Source objects
+- scrape HTML
+- add browser automation
+- add JavaScript rendering
+- invent Article metadata
+- overwrite existing Articles during repeated ingestion
+- automatically create Events
+- automatically create Locations
+- automatically create Evidence
+
 ---
 
 # 32. Source Provenance
@@ -828,6 +1009,22 @@ Do not silently transform interpretation into fact.
 # 34. AI Features
 
 AI is not a core dependency of the initial architecture.
+
+```text
+Current:
+No AI/LLM dependency.
+
+Future:
+AI may be introduced as an enrichment layer (Step 14) if a concrete
+product requirement justifies it.
+```
+
+Potential future enrichment (none of this is implemented; Nocturne does not currently perform automatic intelligence analysis):
+
+- entity extraction
+- location extraction
+- event extraction
+- semantic search
 
 Do not introduce:
 
@@ -922,15 +1119,25 @@ Before declaring a task complete:
 Run:
 
 ```text
-gofmt
-go vet
+gofmt -l .
+go vet ./...
 go test ./...
 go build ./...
 ```
 
 where applicable.
 
+When database integration is required:
+
+- use real PostgreSQL/PostGIS (`docker compose up -d`, then run tests with `DATABASE_URL` set)
+- do not replace integration tests with mocks merely to avoid infrastructure
+- verify migrations (up and down) when schema changes are involved
+
+Docker remains development infrastructure for the backend, not the Android runtime.
+
 ### Android
+
+(Applies once the Android client exists.)
 
 Run the appropriate:
 
@@ -1001,6 +1208,14 @@ refactor: simplify location query
 Avoid giant commits containing unrelated features.
 
 Do not rewrite unrelated files.
+
+Also:
+
+- one logical milestone per commit where practical
+- no unnecessary history rewrites
+- no force push merely to make history aesthetically cleaner
+- do not amend or rewrite already-pushed history unless explicitly requested
+- commit only when explicitly asked
 
 ---
 
@@ -1084,6 +1299,24 @@ Service mesh
 unless the current implementation has a demonstrated need.
 
 A simple system that works is preferable to a sophisticated system that is difficult to maintain.
+
+Search (Step 9) follows the same rule:
+
+```text
+Current:
+Resource listing and filtering exist where already implemented.
+
+Future:
+Cross-resource search.
+
+Initial approach:
+PostgreSQL search capabilities.
+
+Dedicated search infrastructure only if actual
+performance requirements justify it.
+```
+
+Nocturne has no Elasticsearch/OpenSearch support.
 
 ---
 
