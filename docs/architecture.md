@@ -282,6 +282,18 @@ Not every feature requires a dedicated use-case class.
 
 Avoid unnecessary abstraction.
 
+**Implemented in Step 10** (`android/`, single `:app` module, package `com.nocturneosint.app`): Kotlin, Jetpack Compose with Material 3 (dark-first `NocturneTheme` from the Design System tokens; light mode falls back to Material's baseline until a tested light palette exists), Navigation Compose with a type-safe `HomeRoute`, a Ktor client (Android engine, kotlinx.serialization JSON, 5 s connect / 10 s request timeouts, request logging in debug builds only), and the layer boundary below. The only backend calls are `GET /health` and `GET /ready`; the configurable base URL is `BuildConfig.API_BASE_URL` (Gradle property `nocturne.apiBaseUrl`, default `http://10.0.2.2:8080/` for the emulator). Wiring is manual (`NocturneApplication`); no DI framework yet.
+
+```text
+HomeScreen (Compose) ← HomeViewModel (StateFlow<HomeUiState>: Checking | Checked)
+        → BackendRepository (domain interface; BackendStatus: Ready | DatabaseUnavailable | Unreachable)
+        → RemoteBackendRepository (data) → NocturneApi (ApiResult / ApiError) → Ktor → REST API
+```
+
+Transport failures (no connection, timeout, HTTP 4xx/5xx, malformed body) become `ApiError`, then a `ConnectionProblem`; the UI shows a short message, never an exception. `/ready` returning 503 is shown as "database unavailable", keeping the backend's health semantics. Tests: JVM unit tests (API parsing and failure mapping with Ktor `MockEngine`, repository, ViewModel), an opt-in live-backend test, and a Compose UI test (instrumented; needs an emulator or device).
+
+**Not implemented yet:** Room, offline cache, synchronization, MapLibre / Global Map, investigation/dossier UI, media storage or download, search UI, AI/LLM enrichment.
+
 ---
 
 # 5. Android Presentation Layer

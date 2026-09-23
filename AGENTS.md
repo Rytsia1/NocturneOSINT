@@ -55,8 +55,9 @@ Backend:
 Implemented through Step 9 (PostgreSQL article search).
 
 Android:
-Not yet implemented. The repository contains no android/ code yet;
-the Android stack above is the planned client architecture.
+Foundation only (Step 10): Kotlin, Compose, Material 3, navigation,
+Ktor client and a backend health check. Room, offline, maps and product
+screens are not implemented yet.
 ```
 
 Implemented backend domains:
@@ -206,9 +207,9 @@ Step 8   Article Media / Feed Thumbnails        ✓ implemented
         ↓
 Step 9   Search                                 ✓ implemented
         ↓
-Step 10  Android Foundation                     ← next
+Step 10  Android Foundation                     ✓ implemented
         ↓
-Step 11  Room / Offline-Aware Client
+Step 11  Room / Offline-Aware Client            ← next
         ↓
 Step 12  Global Map Android Integration
         ↓
@@ -256,7 +257,7 @@ Expected high-level structure:
 ```text
 nocturne/
 │
-├── android/          (planned — not yet present)
+├── android/          (Step 10 foundation: single :app module)
 │
 ├── backend/
 │
@@ -297,7 +298,7 @@ Do not force an architecture mechanically if the repository already has a clean 
 
 ## Android
 
-Planned client stack (no Android code exists yet; applies from Step 10). Use:
+Client stack (Kotlin, Compose, Coroutines and Ktor are in use since Step 10; Room and MapLibre are planned). Use:
 
 - Kotlin
 - Jetpack Compose
@@ -646,7 +647,7 @@ Respect mobile bandwidth and memory constraints.
 
 # 22. Android Guidelines
 
-Sections 22–26 describe the planned Android client (Steps 10–13). No Android code exists yet; do not describe these as implemented.
+Sections 22–26 describe the Android client. Step 10 implemented the foundation (Compose UI → ViewModel → repository → Ktor API); Room, offline behaviour and product screens (Steps 11–13) do not exist yet; do not describe them as implemented.
 
 Use modern Android architecture.
 

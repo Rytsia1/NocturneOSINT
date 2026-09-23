@@ -132,3 +132,40 @@ docker compose down -v   # also DELETES the database volume
 See `.env.example`. The backend reads `APP_ENV`, `PORT`, `DATABASE_URL`, `LOG_LEVEL`;
 `docker compose` reads `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` from `.env`
 if present (defaults are development-only). Never commit `.env`.
+
+## Android client
+
+`android/` holds the Android app (Kotlin, Jetpack Compose, Material 3, Ktor).
+It is a foundation only: one Home screen that reports whether the backend is
+reachable (`GET /health`) and whether its database is ready (`GET /ready`).
+
+Requirements: JDK 17+ (Gradle 9.7 runs on JDK 17–26), Android SDK platform 37
+and build-tools 36.0.0 (via Android Studio, or `ANDROID_HOME` /
+`android/local.properties` with `sdk.dir=`).
+
+```bash
+cd android
+./gradlew assembleDebug          # app/build/outputs/apk/debug/app-debug.apk
+./gradlew test                   # JVM unit tests
+./gradlew connectedAndroidTest   # Compose UI test; needs an emulator or device
+./gradlew installDebug           # install on a running emulator/device
+```
+
+**Backend URL.** Set by the Gradle property `nocturne.apiBaseUrl` (must end
+with `/`), default `http://10.0.2.2:8080/`: inside the Android emulator
+`10.0.2.2` is the host machine, while `localhost` is the emulator itself. For a
+physical device use the host's LAN address:
+
+```bash
+./gradlew installDebug -Pnocturne.apiBaseUrl=http://192.168.1.20:8080/
+```
+
+or put `nocturne.apiBaseUrl=…` in `~/.gradle/gradle.properties`. Debug builds
+allow plain HTTP for local development; release builds do not.
+
+`LiveBackendTest` checks the app's client against a running backend and is
+skipped unless `NOCTURNE_BACKEND_URL` is set:
+
+```bash
+NOCTURNE_BACKEND_URL=http://localhost:8080/ ./gradlew testDebugUnitTest --tests '*LiveBackendTest'
+```
