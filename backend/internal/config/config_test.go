@@ -3,6 +3,10 @@ package config
 import "testing"
 
 func TestLoad_Defaults(t *testing.T) {
+	for _, key := range []string{"APP_ENV", "PORT", "DATABASE_URL", "LOG_LEVEL"} {
+		t.Setenv(key, "")
+	}
+
 	cfg := Load()
 
 	if cfg.AppEnv != "development" {

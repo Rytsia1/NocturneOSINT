@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"nocturne-backend/internal/config"
+	"nocturne-backend/internal/database"
 	apphttp "nocturne-backend/internal/http"
 )
 
@@ -20,14 +21,21 @@ func main() {
 	cfg := config.Load()
 	logger := newLogger(cfg.LogLevel)
 
-	srv := &http.Server{
-		Addr:              ":" + cfg.Port,
-		Handler:           apphttp.NewRouter(logger),
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	db, err := database.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("database unavailable", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("connected to database")
+
+	srv := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           apphttp.NewRouter(logger, db),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
 
 	go func() {
 		logger.Info("starting server", "port", cfg.Port, "env", cfg.AppEnv)
@@ -45,9 +53,11 @@ func main() {
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Error("graceful shutdown failed", "error", err)
+		db.Close()
 		os.Exit(1)
 	}
 
+	db.Close()
 	logger.Info("server stopped")
 }
 

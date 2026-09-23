@@ -10,10 +10,26 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nocturne}"]
+      # TCP (-h 127.0.0.1), not the unix socket: the image's temporary init
+      # server only listens on the socket, so a socket check reports ready
+      # before PostGIS init finishes and the real server starts.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-nocturne} -d ${POSTGRES_DB:-nocturne}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+
+  migrate:
+    image: migrate/migrate:v4.18.3
+    volumes:
+      - ./backend/migrations:/migrations:ro
+    entrypoint:
+      - migrate
+      - -path=/migrations
+      - -database=postgres://${POSTGRES_USER:-nocturne}:${POSTGRES_PASSWORD:-nocturne}@postgres:5432/${POSTGRES_DB:-nocturne}?sslmode=disable
+    command: ["up"]
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   backend:
     build: ./backend
@@ -25,8 +41,8 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   postgres_data:
