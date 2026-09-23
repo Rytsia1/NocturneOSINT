@@ -29,6 +29,7 @@ curl localhost:8080/ready    # 200 {"status":"ready"} — database reachable; 50
 | `GET /api/sources/{id}` | 200 source | 400 bad id, 404 |
 | `POST /api/sources` `{"name","url","description"}` | 201 source + `Location` | 400 invalid, 409 duplicate URL |
 | `DELETE /api/sources/{id}` | 204 | 400 bad id, 404, 409 source still has articles |
+| `POST /api/sources/{id}/ingest` (no body) | 200 `{"source_id","fetched","inserted","duplicates","invalid","truncated","errors":[{"item","reason"}]}` | 400 bad id, 404, 422 `source_not_ingestible` / `invalid_feed` / `feed_too_large`, 502 `upstream_error`, 504 `upstream_timeout` |
 | `GET /api/articles?source_id=…&limit=20&cursor=…` | 200 `{"items":[…],"next_cursor":…}` by `published_at` (else `retrieved_at`), newest first | 400 |
 | `GET /api/articles/{id}` | 200 article | 400 bad id, 404 |
 | `POST /api/articles` `{"source_id","title","url","summary","published_at"}` | 201 article + `Location` | 400 invalid, 409 duplicate URL, 422 unknown source |
@@ -55,6 +56,16 @@ curl localhost:8080/ready    # 200 {"status":"ready"} — database reachable; 50
 Errors use `{"error":{"code":"…","message":"…"}}`. URLs must be absolute
 http(s) and are stored exactly as sent. `published_at` is optional (RFC 3339);
 `retrieved_at` is set by the server when the article is recorded.
+
+**Feed ingestion.** `POST /api/sources/{id}/ingest` fetches the Source's own
+`url` as an RSS 2.0 or Atom feed and stores its new items as Articles of that
+Source. It is manual (no scheduler), idempotent, and never modifies existing
+Articles. Counters: `fetched` items considered (first 200), `inserted` new
+Articles, `duplicates` URLs already stored or repeated in the feed, `invalid`
+items skipped (reasons for up to 10 in `errors`); `truncated` means the feed
+had more than 200 items. Only public http(s) addresses are fetched (15 s
+timeout, 2 MiB, 5 redirects), so a feed on `localhost` or a private network is
+refused with 422.
 
 ### Run the backend locally instead of in Docker
 

@@ -917,6 +917,28 @@ Potential sources:
 
 Each source adapter should remain isolated.
 
+Implemented so far (`internal/ingest`, RSS 2.0 and Atom only), triggered manually by `POST /api/sources/{id}/ingest`; there is no scheduler or worker:
+
+```text
+Source (must already exist; its url is the feed URL)
+   ↓
+Feed Fetcher   GET one URL; public addresses only; 15 s, 2 MiB, 5 redirects
+   ↓
+Parser         encoding/xml; <rss> or Atom <feed>, else rejected (no HTML fallback)
+   ↓
+Normalizer     trim title; link kept as given; summary → plain text ≤ 2000 chars;
+               RSS pubDate / Atom published → UTC, else NULL (Atom updated is not used)
+   ↓
+Ingestion Service   first 200 items; invalid items skipped and reported;
+                    dedup by exact Article URL, one insert per item
+   ↓
+Article (source_id = the Source)
+```
+
+Deduplication is by Article URL: existing URLs are looked up first, and `articles_url_key` remains the final authority, so a repeated run inserts nothing and existing Articles are never updated. Only metadata is stored (title, url, summary, published_at, retrieved_at, source_id), never raw XML, HTML or media. Ingestion does not create Events, Locations or Evidence, and does no NLP, AI/LLM processing, crawling, link following or JavaScript rendering. Non-UTF-8 feeds are currently rejected as invalid.
+
+SSRF mitigation (basic, not a complete defence): only `http`/`https`; `localhost` names are refused; every address actually dialed, after DNS resolution and on each redirect, must be public (not loopback, private, link-local, CGNAT, multicast or unspecified, IPv4 or IPv6), which also covers DNS rebinding between check and connect; environment proxies are ignored so the check applies to the real peer. The feed URL always comes from a stored Source, never from the request.
+
 ---
 
 # 27. Source Adapter Concept

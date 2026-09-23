@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"nocturne-backend/internal/domain"
+	"nocturne-backend/internal/ingest"
 	"nocturne-backend/internal/repository"
 )
 
@@ -26,7 +27,13 @@ const (
 )
 
 // NewRouter builds the backend's HTTP handler, wrapped with request logging.
+// Feed ingestion fetches public addresses only.
 func NewRouter(logger *slog.Logger, db *pgxpool.Pool) http.Handler {
+	return newRouter(logger, db, ingest.NewDefaultFetcher())
+}
+
+// newRouter lets tests supply a Fetcher that may reach a local test server.
+func newRouter(logger *slog.Logger, db *pgxpool.Pool, fetcher *ingest.Fetcher) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.HandleFunc("GET /ready", handleReady(logger, db))
@@ -36,6 +43,10 @@ func NewRouter(logger *slog.Logger, db *pgxpool.Pool) http.Handler {
 	mux.HandleFunc("POST /api/sources", sources.create)
 	mux.HandleFunc("GET /api/sources/{id}", sources.get)
 	mux.HandleFunc("DELETE /api/sources/{id}", sources.delete)
+
+	ingester := &ingestHandler{logger: logger, service: ingest.NewService(
+		repository.NewSourceRepository(db), repository.NewArticleRepository(db), fetcher)}
+	mux.HandleFunc("POST /api/sources/{id}/ingest", ingester.ingest)
 
 	articles := &articleHandler{logger: logger, articles: repository.NewArticleRepository(db)}
 	mux.HandleFunc("GET /api/articles", articles.list)

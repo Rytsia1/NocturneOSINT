@@ -113,3 +113,21 @@ func (r *ArticleRepository) Delete(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+// ExistingURLs returns which of urls are already stored (matched exactly, as
+// the unique constraint does), using the articles_url_key index.
+func (r *ArticleRepository) ExistingURLs(ctx context.Context, urls []string) (map[string]bool, error) {
+	rows, err := r.db.Query(ctx, `SELECT url FROM articles WHERE url = ANY($1)`, urls)
+	if err != nil {
+		return nil, fmt.Errorf("find existing urls: %w", err)
+	}
+	found, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, fmt.Errorf("find existing urls: %w", err)
+	}
+	existing := make(map[string]bool, len(found))
+	for _, u := range found {
+		existing[u] = true
+	}
+	return existing, nil
+}
