@@ -136,7 +136,7 @@ func TestIntegration_SourceListOrderAndCursor(t *testing.T) {
 	// Walk every page with a small page size; the table may hold other rows.
 	seen := map[string]bool{}
 	var order []string
-	var cursor *SourceCursor
+	var cursor *Cursor
 	for {
 		page, err := repo.List(ctx, 2, cursor)
 		if err != nil {
@@ -156,7 +156,7 @@ func TestIntegration_SourceListOrderAndCursor(t *testing.T) {
 			break
 		}
 		last := page[len(page)-1]
-		cursor = &SourceCursor{CreatedAt: last.CreatedAt, ID: last.ID}
+		cursor = &Cursor{At: last.CreatedAt, ID: last.ID}
 	}
 
 	// Newest first: our sources must appear in reverse creation order.

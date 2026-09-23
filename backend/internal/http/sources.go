@@ -1,23 +1,14 @@
 package http
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 
 	"nocturne-backend/internal/domain"
 	"nocturne-backend/internal/repository"
-)
-
-const (
-	defaultSourcePageSize = 20
-	maxSourcePageSize     = 100
-	maxRequestBodyBytes   = 16 << 10
 )
 
 type sourceHandler struct {
@@ -32,11 +23,6 @@ type sourceResponse struct {
 	Description string    `json:"description"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
-}
-
-type sourceListResponse struct {
-	Items      []sourceResponse `json:"items"`
-	NextCursor *string          `json:"next_cursor"`
 }
 
 type createSourceRequest struct {
@@ -109,39 +95,19 @@ func (h *sourceHandler) get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *sourceHandler) list(w http.ResponseWriter, r *http.Request) {
-	limit := defaultSourcePageSize
-	if raw := r.URL.Query().Get("limit"); raw != "" {
-		n, err := strconv.Atoi(raw)
-		if err != nil || n < 1 || n > maxSourcePageSize {
-			writeError(w, http.StatusBadRequest, "invalid_limit", "limit must be an integer between 1 and 100")
-			return
-		}
-		limit = n
+	limit, cursor, ok := parsePage(w, r)
+	if !ok {
+		return
 	}
 
-	var cursor *repository.SourceCursor
-	if raw := r.URL.Query().Get("cursor"); raw != "" {
-		c, ok := decodeSourceCursor(raw)
-		if !ok {
-			writeError(w, http.StatusBadRequest, "invalid_cursor", "cursor is malformed")
-			return
-		}
-		cursor = c
-	}
-
-	// Fetch one extra row to learn whether another page exists.
 	sources, err := h.sources.List(r.Context(), limit+1, cursor)
 	if err != nil {
 		h.internalError(w, err)
 		return
 	}
 
-	resp := sourceListResponse{Items: make([]sourceResponse, 0, min(len(sources), limit))}
-	if len(sources) > limit {
-		sources = sources[:limit]
-		next := encodeSourceCursor(sources[limit-1])
-		resp.NextCursor = &next
-	}
+	sources, next := trimPage(sources, limit, func(s domain.Source) (time.Time, string) { return s.CreatedAt, s.ID })
+	resp := listResponse[sourceResponse]{Items: make([]sourceResponse, 0, len(sources)), NextCursor: next}
 	for _, s := range sources {
 		resp.Items = append(resp.Items, toSourceResponse(s))
 	}
@@ -156,11 +122,14 @@ func (h *sourceHandler) delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := h.sources.Delete(r.Context(), id)
-	if errors.Is(err, domain.ErrSourceNotFound) {
+	switch {
+	case errors.Is(err, domain.ErrSourceNotFound):
 		writeError(w, http.StatusNotFound, "source_not_found", "source not found")
 		return
-	}
-	if err != nil {
+	case errors.Is(err, domain.ErrSourceHasArticles):
+		writeError(w, http.StatusConflict, "source_has_articles", "delete the source's articles before deleting the source")
+		return
+	case err != nil:
 		h.internalError(w, err)
 		return
 	}
@@ -170,25 +139,4 @@ func (h *sourceHandler) delete(w http.ResponseWriter, r *http.Request) {
 func (h *sourceHandler) internalError(w http.ResponseWriter, err error) {
 	h.logger.Error("source request failed", "error", err)
 	writeError(w, http.StatusInternalServerError, "internal_error", "internal server error")
-}
-
-// Cursors are opaque to clients: base64url("<created_at RFC3339Nano>|<id>").
-func encodeSourceCursor(s domain.Source) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(s.CreatedAt.UTC().Format(time.RFC3339Nano) + "|" + s.ID))
-}
-
-func decodeSourceCursor(raw string) (*repository.SourceCursor, bool) {
-	b, err := base64.RawURLEncoding.DecodeString(raw)
-	if err != nil {
-		return nil, false
-	}
-	ts, id, ok := strings.Cut(string(b), "|")
-	if !ok || !domain.IsValidID(id) {
-		return nil, false
-	}
-	createdAt, err := time.Parse(time.RFC3339Nano, ts)
-	if err != nil {
-		return nil, false
-	}
-	return &repository.SourceCursor{CreatedAt: createdAt, ID: id}, true
 }

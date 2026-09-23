@@ -53,7 +53,7 @@ func TestNewSource_Invalid(t *testing.T) {
 		{"missing host", "Source", "https://", "", "url"},
 		{"leading space", "Source", " https://example.com", "", "url"},
 		{"inner space", "Source", "https://example.com/a b", "", "url"},
-		{"url too long", "Source", "https://example.com/" + strings.Repeat("a", MaxSourceURLLength), "", "url"},
+		{"url too long", "Source", "https://example.com/" + strings.Repeat("a", MaxURLLength), "", "url"},
 		{"description too long", "Source", "https://example.com", strings.Repeat("a", MaxSourceDescriptionLength+1), "description"},
 	}
 	for _, tt := range tests {

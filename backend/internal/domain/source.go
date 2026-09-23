@@ -14,13 +14,14 @@ import (
 
 const (
 	MaxSourceNameLength        = 200  // characters
-	MaxSourceURLLength         = 2048 // bytes
+	MaxURLLength               = 2048 // bytes
 	MaxSourceDescriptionLength = 2000 // characters
 )
 
 var (
-	ErrSourceNotFound  = errors.New("source not found")
-	ErrSourceURLExists = errors.New("a source with this URL already exists")
+	ErrSourceNotFound    = errors.New("source not found")
+	ErrSourceURLExists   = errors.New("a source with this URL already exists")
+	ErrSourceHasArticles = errors.New("source still has articles")
 )
 
 // ValidationError describes input that violates a domain rule.
@@ -53,7 +54,7 @@ func NewSource(name, rawURL, description string) (Source, error) {
 	if utf8.RuneCountInString(name) > MaxSourceNameLength {
 		return Source{}, &ValidationError{"name", fmt.Sprintf("must be at most %d characters", MaxSourceNameLength)}
 	}
-	if err := validateSourceURL(rawURL); err != nil {
+	if err := validateURL(rawURL); err != nil {
 		return Source{}, err
 	}
 	if utf8.RuneCountInString(description) > MaxSourceDescriptionLength {
@@ -63,12 +64,13 @@ func NewSource(name, rawURL, description string) (Source, error) {
 	return Source{Name: name, URL: rawURL, Description: description}, nil
 }
 
-func validateSourceURL(raw string) error {
+// validateURL checks that raw is an absolute http(s) URL without rewriting it.
+func validateURL(raw string) error {
 	if raw == "" {
 		return &ValidationError{"url", "is required"}
 	}
-	if len(raw) > MaxSourceURLLength {
-		return &ValidationError{"url", fmt.Sprintf("must be at most %d bytes", MaxSourceURLLength)}
+	if len(raw) > MaxURLLength {
+		return &ValidationError{"url", fmt.Sprintf("must be at most %d bytes", MaxURLLength)}
 	}
 	u, err := url.Parse(raw)
 	if err != nil || strings.ContainsFunc(raw, unicode.IsSpace) ||

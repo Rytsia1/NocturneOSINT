@@ -989,6 +989,8 @@ Retrieved At
 
 These are not interchangeable.
 
+`articles.source_id` is a foreign key with `ON DELETE RESTRICT`: a Source cannot be deleted while Articles reference it, so provenance is never silently lost. `published_at` stays `NULL` when the Source gives no date; for manually created Articles, `retrieved_at` is the time the Article was recorded through the API.
+
 ---
 
 # 30. Evidence Architecture

@@ -28,10 +28,15 @@ curl localhost:8080/ready    # 200 {"status":"ready"} — database reachable; 50
 | `GET /api/sources?limit=20&cursor=…` | 200 `{"items":[…],"next_cursor":…}` newest first; `limit` 1–100 | 400 |
 | `GET /api/sources/{id}` | 200 source | 400 bad id, 404 |
 | `POST /api/sources` `{"name","url","description"}` | 201 source + `Location` | 400 invalid, 409 duplicate URL |
-| `DELETE /api/sources/{id}` | 204 | 400 bad id, 404 |
+| `DELETE /api/sources/{id}` | 204 | 400 bad id, 404, 409 source still has articles |
+| `GET /api/articles?source_id=…&limit=20&cursor=…` | 200 `{"items":[…],"next_cursor":…}` by `published_at` (else `retrieved_at`), newest first | 400 |
+| `GET /api/articles/{id}` | 200 article | 400 bad id, 404 |
+| `POST /api/articles` `{"source_id","title","url","summary","published_at"}` | 201 article + `Location` | 400 invalid, 409 duplicate URL, 422 unknown source |
+| `DELETE /api/articles/{id}` | 204 | 400 bad id, 404 |
 
-Errors use `{"error":{"code":"…","message":"…"}}`. Source URLs must be absolute
-http(s) and are stored exactly as sent.
+Errors use `{"error":{"code":"…","message":"…"}}`. URLs must be absolute
+http(s) and are stored exactly as sent. `published_at` is optional (RFC 3339);
+`retrieved_at` is set by the server when the article is recorded.
 
 ### Run the backend locally instead of in Docker
 

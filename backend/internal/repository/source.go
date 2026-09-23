@@ -23,10 +23,11 @@ func NewSourceRepository(db *pgxpool.Pool) *SourceRepository {
 	return &SourceRepository{db: db}
 }
 
-// SourceCursor identifies the last Source of a previous List page.
-type SourceCursor struct {
-	CreatedAt time.Time
-	ID        string
+// Cursor identifies the last item of a previous List page by its sort time
+// and ID; List methods return the items that sort after it.
+type Cursor struct {
+	At time.Time
+	ID string
 }
 
 const sourceColumns = "id::text, name, url, description, created_at, updated_at"
@@ -68,7 +69,7 @@ func (r *SourceRepository) GetByID(ctx context.Context, id string) (domain.Sourc
 
 // List returns up to limit Sources, newest first, starting after the cursor
 // (or from the newest Source when after is nil).
-func (r *SourceRepository) List(ctx context.Context, limit int, after *SourceCursor) ([]domain.Source, error) {
+func (r *SourceRepository) List(ctx context.Context, limit int, after *Cursor) ([]domain.Source, error) {
 	var (
 		rows pgx.Rows
 		err  error
@@ -81,7 +82,7 @@ func (r *SourceRepository) List(ctx context.Context, limit int, after *SourceCur
 			`SELECT `+sourceColumns+` FROM sources
 			 WHERE (created_at, id) < ($2::timestamptz, $3::uuid)
 			 ORDER BY created_at DESC, id DESC LIMIT $1`,
-			limit, after.CreatedAt, after.ID)
+			limit, after.At, after.ID)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("list sources: %w", err)
@@ -96,9 +97,14 @@ func (r *SourceRepository) List(ctx context.Context, limit int, after *SourceCur
 	return sources, nil
 }
 
-// Delete returns domain.ErrSourceNotFound when no Source has the given ID.
+// Delete returns domain.ErrSourceNotFound when no Source has the given ID and
+// domain.ErrSourceHasArticles while Articles still reference it.
 func (r *SourceRepository) Delete(ctx context.Context, id string) error {
 	tag, err := r.db.Exec(ctx, `DELETE FROM sources WHERE id = $1::uuid`, id)
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23503" && pgErr.ConstraintName == "articles_source_id_fkey" {
+		return domain.ErrSourceHasArticles
+	}
 	if err != nil {
 		return fmt.Errorf("delete source: %w", err)
 	}
